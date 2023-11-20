@@ -1,0 +1,3 @@
+# vimrc
+
+simple vimrc setups
