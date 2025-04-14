@@ -7,6 +7,13 @@ vim.opt.smartindent = true
 vim.opt.termguicolors = true
 vim.opt.syntax = "on"
 
+-- 📌 Настройка вертикальной линии справа (colorcolumn)
+vim.opt.colorcolumn = "120"  -- можно задать другое число, если нужно
+
+-- 📌 Подсветка текущей строки (с тонким подчеркиванием)
+vim.opt.cursorline = true
+vim.api.nvim_set_hl(0, "CursorLine", { underline = true, bg = "none" })
+
 -- 📌 Установка lazy.nvim (если его нет)
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not vim.loop.fs_stat(lazypath) then
@@ -17,31 +24,55 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
--- 📌 Подключение плагинов
+-- 📌 Подключение плагинов через lazy.nvim
 require("lazy").setup({
-    "neovim/nvim-lspconfig",        -- LSP (clangd)
-    "hrsh7th/nvim-cmp",             -- Автодополнение
-    "hrsh7th/cmp-nvim-lsp",         -- LSP в автодополнении
-    "nvim-tree/nvim-tree.lua",      -- Файловый менеджер
+    "neovim/nvim-lspconfig",         -- LSP (clangd)
+    "hrsh7th/nvim-cmp",              -- Автодополнение
+    "hrsh7th/cmp-nvim-lsp",          -- LSP в автодополнении
+    "nvim-tree/nvim-tree.lua",       -- Файловый менеджер
     "nvim-telescope/telescope.nvim", -- Поиск файлов
-    "mfussenegger/nvim-dap",        -- Отладчик
-    "mhartington/formatter.nvim",   -- Форматирование
-    "nvim-lualine/lualine.nvim",    -- Статусная строка
-    "windwp/nvim-autopairs",        -- Автозакрытие скобок
-    "folke/tokyonight.nvim",        -- Тема
+    "mfussenegger/nvim-dap",         -- Отладчик
+    "mhartington/formatter.nvim",    -- Форматирование
+    "nvim-lualine/lualine.nvim",     -- Статусная строка
+    "windwp/nvim-autopairs",         -- Автозакрытие скобок
+    "folke/tokyonight.nvim",         -- Тема
     "NLKNguyen/papercolor-theme",
-    "akinsho/toggleterm.nvim"       -- Терминал для сборки и запуска
+    "akinsho/toggleterm.nvim",       -- Терминал для сборки и запуска
+    "lukas-reineke/indent-blankline.nvim"  -- Подсветка отступов
 })
 
 -- 📌 Установка темы
-vim.cmd("colorscheme tokyonight")
+vim.cmd("colorscheme torte")
 
 -- 📌 Настройка LSP (clangd для C++)
 local lspconfig = require("lspconfig")
 lspconfig.clangd.setup({
     on_attach = function(client, bufnr)
         local opts = { noremap = true, silent = true, buffer = bufnr }
-        vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
+
+        -- Перейти к определению в новой вкладке
+        vim.keymap.set("n", "gd", function()
+            local params = vim.lsp.util.make_position_params()
+            vim.lsp.buf_request(0, "textDocument/definition", params, function(err, result)
+                if result == nil or vim.tbl_isempty(result) then
+                    print("[LSP] Definition not found")
+                    return
+                end
+
+                local def = result[1]
+                if def.targetUri then
+                    def = def.targetUri and def or def[1]
+                    def.uri = def.targetUri
+                    def.range = def.targetSelectionRange
+                end
+
+                local fname = vim.uri_to_fname(def.uri)
+                vim.cmd("tabnew " .. fname)
+                vim.api.nvim_win_set_cursor(0, { def.range.start.line + 1, def.range.start.character })
+            end)
+        end, opts)
+
+        -- Поиск ссылок
         vim.keymap.set("n", "<C-o>", vim.lsp.buf.references, opts)
     end,
 })
@@ -100,7 +131,7 @@ require("toggleterm").setup({
 -- 📌 Функция для компиляции и запуска C++
 function CompileAndRun()
     local file = vim.fn.expand("%")         -- Получаем имя текущего файла
-    local output = vim.fn.expand("%:r")     -- Имя без расширения
+    local output = vim.fn.expand("%:r")       -- Имя без расширения
     local cmd = "g++ " .. file .. " -o " .. output .. " && ./" .. output
 
     require("toggleterm.terminal").Terminal
@@ -111,3 +142,4 @@ end
 -- 📌 Горячая клавиша для компиляции и запуска
 vim.api.nvim_set_keymap("n", "<leader>r", ":lua CompileAndRun()<CR>", { noremap = true, silent = true })
 
+require("ibl").setup()
